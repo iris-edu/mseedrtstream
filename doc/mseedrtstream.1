@@ -1,0 +1,158 @@
+.TH MSEEDRTSTREAM 2013/03/25
+.SH NAME
+Create simulated real-time stream of Mini-SEED
+
+.SH SYNOPSIS
+.nf
+mseedrtstream [options] file1 [file2 file3 ...]
+
+.fi
+.SH DESCRIPTION
+\fBmseedrtstream\fP reads input files and creates simulated real-time
+feeds of Mini-SEED data. The most fundamental operation of this
+program is to read all specified input data and output the records in
+an order similar to what may be expected from a multiplexed real-time
+feed.  Data may be written to an output file or sent to a DataLink
+server (ringserver).
+
+Multiple options are available to select a subset of data records from
+the specified input files.
+
+Multiple input files will be read in the order specified and processed
+all together as if all the data records were from the same file.  The
+program must read input data from files, input from pipes, etc. is not
+possible.  Output to a pipe is possible.
+
+Files on the command line prefixed with a '@' character are input list
+files and are expected to contain a simple list of input files, see
+\fBINPUT LIST FILE\fR for more details.
+
+When a input file is full SEED including both SEED headers and data
+records all of the headers will be skipped and completely unprocessed.
+
+.SH OPTIONS
+
+.IP "-V         "
+Print program version and exit.
+
+.IP "-h         "
+Print program usage and exit.
+
+.IP "-v         "
+Be more verbose.  This flag can be used multiple times ("-v -v" or
+"-vv") for more verbosity.
+
+.IP "-s \fIselectfile\fP"
+Limit processing to Mini-SEED records that match a selection in the
+specified file.  The selection file contains parameters to match the
+network, station, location, channel, quality and time range for input
+records.  As a special case, specifying "-" will result in selection
+lines being read from stdin.  For more details see the \fBSELECTION
+FILE\fR section below.
+
+.IP "-ts \fItime\fP"
+Limit processing to Mini-SEED records that start after or contain
+\fItime\fP.  The format of the \fItime\fP argument
+is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either
+commas (,), colons (:) or periods (.).
+
+.IP "-te \fItime\fP"
+Limit processing to Mini-SEED records that end before or contain
+\fItime\fP.  The format of the \fItime\fP argument
+is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either
+commas (,), colons (:) or periods (.).
+
+.IP "-M \fImatch\fP"
+Limit input to records that match this regular expression, the
+\fImatch\fP is tested against the full source
+name: 'NET_STA_LOC_CHAN_QUAL'.  If the match expression begins with
+an '@' character it is assumed to indicate a file containing a list of
+expressions to match, see the \fBMATCH OR REJECT LIST FILE\fR section
+below.
+
+.IP "-R \fIreject\fP"
+Limit input to records that do not match this regular expression, the
+\fIreject\fP is tested against the full source
+name: 'NET_STA_LOC_CHAN_QUAL'.  If the reject expression begins with
+an '@' character it is assumed to indicate a file containing a list of
+expressions to reject, see the \fBMATCH OR REJECT LIST FILE\fR
+section below.
+
+.IP "-o \fIfile\fP"
+Write all output data to output \fIfile\fP instead of replacing the
+original files.  When this option is used no backups will be created
+and the original files will not be modified in any way.  If '-' is
+specified as the output file all output data will be written to
+standard out.  By default the output file will be overwritten,
+changing the option to \fI+o file\fP appends to the output file.
+
+.IP "-sum         "
+Print a basic summary of input data after reading all the files.
+
+.SH "SELECTION FILE"
+A selection file is used to match input data records based on network,
+station, location and channel information.  Optionally a quality and
+time range may also be specified for more refined selection.  The
+non-time fields may use the '*' wildcard to match multiple characters
+and the '?' wildcard to match single characters.  Character sets may
+also be used, for example '[ENZ]' will match either E, N or Z.
+The '#' character indicates the remaining portion of the line will be
+ignored.
+
+Example selection file entires (the first four fields are required)
+.nf
+#net sta  loc  chan  qual  start             end
+IU   ANMO *    BH?
+II   *    *    *     Q     
+IU   COLA 00   LH[ENZ] R
+IU   COLA 00   LHZ   *     2008,100,10,00,00 2008,100,10,30,00
+.fi
+
+.SH "INPUT LIST FILE"
+A list file can be used to specify input files, one file per line.
+The initial '@' character indicating a list file is not considered
+part of the file name.  As an example, if the following command line
+option was used:
+
+.nf
+\fB@files.list\fP
+.fi
+
+The 'files.list' file might look like this:
+
+.nf
+data/day1.mseed
+data/day2.mseed
+data/day3.mseed
+.fi
+
+.SH "MATCH OR REJECT LIST FILE"
+A list file used with either the \fB-M\fP or \fB-R\fP contains a list
+of regular expressions (one on each line) that will be combined into a
+single compound expression.  The initial '@' character indicating a
+list file is not considered part of the file name.  As an example, if
+the following command line option was used:
+
+.nf
+\fB-M @match.list\fP
+.fi
+
+The 'match.list' file might look like this:
+
+.nf
+IU_ANMO_.*
+IU_ADK_00_BHZ.*
+II_BFO_00_BHZ_Q
+.fi
+
+.SH ERROR HANDLING AND RETURN CODES
+Any significant error message will be pre-pended with "ERROR" which
+can be parsed to determine run-time errors.  Additionally the program
+will return an exit code of 0 on successful operation and 1 when any
+errors were encountered.
+
+.SH AUTHOR
+.nf
+Chad Trabant
+IRIS Data Management Center
+.fi
