@@ -14,6 +14,12 @@
  * modified 2013.084
  ***************************************************************************/
 
+// Option: Delay send based on actual time, accelerated time
+
+// Option: Add DataLink output
+
+// Option: Restamp times to make "current"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
