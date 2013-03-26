@@ -5,12 +5,12 @@
 #   CFLAGS : Specify compiler options to use
 
 # Required compiler parameters
-REQCFLAGS = -I../libmseed
+REQCFLAGS = -I../libdali -I../libmseed
 
 BIN = mseedrtstream
 
-LDFLAGS = -L../libmseed
-LDLIBS = -lmseed 
+LDFLAGS = -L../libdali -L../libmseed 
+LDLIBS = -ldali -lmseed
 
 OBJS = $(BIN).o
 

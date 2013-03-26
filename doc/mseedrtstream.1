@@ -42,14 +42,6 @@ Print program usage and exit.
 Be more verbose.  This flag can be used multiple times ("-v -v" or
 "-vv") for more verbosity.
 
-.IP "-s \fIselectfile\fP"
-Limit processing to Mini-SEED records that match a selection in the
-specified file.  The selection file contains parameters to match the
-network, station, location, channel, quality and time range for input
-records.  As a special case, specifying "-" will result in selection
-lines being read from stdin.  For more details see the \fBSELECTION
-FILE\fR section below.
-
 .IP "-ts \fItime\fP"
 Limit processing to Mini-SEED records that start after or contain
 \fItime\fP.  The format of the \fItime\fP argument
@@ -79,34 +71,16 @@ expressions to reject, see the \fBMATCH OR REJECT LIST FILE\fR
 section below.
 
 .IP "-o \fIfile\fP"
-Write all output data to output \fIfile\fP instead of replacing the
-original files.  When this option is used no backups will be created
-and the original files will not be modified in any way.  If '-' is
+Write simulated real-time data stream to output \fIfile\fP.  If '-' is
 specified as the output file all output data will be written to
-standard out.  By default the output file will be overwritten,
-changing the option to \fI+o file\fP appends to the output file.
+standard out.  Any existing output file will be overwritten.
+
+.IP "-dl \fIhost:port\fP"
+Send simulated real-time data stream to DataLink server at \fIhost\fP
+and \fIport\fP. 
 
 .IP "-sum         "
 Print a basic summary of input data after reading all the files.
-
-.SH "SELECTION FILE"
-A selection file is used to match input data records based on network,
-station, location and channel information.  Optionally a quality and
-time range may also be specified for more refined selection.  The
-non-time fields may use the '*' wildcard to match multiple characters
-and the '?' wildcard to match single characters.  Character sets may
-also be used, for example '[ENZ]' will match either E, N or Z.
-The '#' character indicates the remaining portion of the line will be
-ignored.
-
-Example selection file entires (the first four fields are required)
-.nf
-#net sta  loc  chan  qual  start             end
-IU   ANMO *    BH?
-II   *    *    *     Q     
-IU   COLA 00   LH[ENZ] R
-IU   COLA 00   LHZ   *     2008,100,10,00,00 2008,100,10,30,00
-.fi
 
 .SH "INPUT LIST FILE"
 A list file can be used to specify input files, one file per line.

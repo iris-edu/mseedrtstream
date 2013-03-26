@@ -14,11 +14,11 @@
  * modified 2013.084
  ***************************************************************************/
 
-// Option: Delay send based on actual time, accelerated time
+/* Option: Delay send based on actual time, accelerated time */
 
-// Option: Add DataLink output
+/* Option: Add DataLink output */
 
-// Option: Restamp times to make "current"
+/* Option: Restamp times to make "current" */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +31,7 @@
 #include <time.h>
 #include <regex.h>
 
+#include <libdali.h>
 #include <libmseed.h>
 
 #define VERSION "0.1"
@@ -64,8 +65,7 @@ typedef struct RecordMap_s {
 
 static int readfiles (RecordMap *recmap);
 static int writerecords (RecordMap *recmap);
-
-static void printrecordmap (RecordMap *recmap, flag details);
+static int sendrecord (char *record, int reclen);
 
 static int sortrecmap (RecordMap *recmap);
 static int recordcmp (Record *rec1, Record *rec2);
@@ -76,7 +76,6 @@ static int  setofilelimit (int limit);
 static int  addfile (char *filename);
 static int  addlistfile (char *filename);
 static int  readregexfile (char *regexfile, char **pppattern);
-static off_t calcsize (char *sizestr);
 static void usage (void);
 
 
@@ -96,7 +95,8 @@ static char     recordbuf[16384];     /* Global record buffer */
 
 static Filelink *filelist     = 0;    /* List of input files */
 static Filelink *filelisttail = 0;    /* Tail of list of input files */
-static Selections *selections = 0;    /* List of data selections */
+
+static DLCP *dlconn = 0;
 
 int
 main ( int argc, char **argv )
@@ -109,6 +109,16 @@ main ( int argc, char **argv )
   /* Process input parameters */
   if ( processparam (argc, argv) < 0 )
     return 1;
+
+  /* Connect to DataLink server */
+  if ( dlconn )
+    {
+      if ( dl_connect (dlconn) < 0 )
+	{
+	  ms_log (2, "Error connecting to DataLink server\n");
+	  return -1;
+	}
+    }
   
   if ( verbose > 2 )
     ms_log (1, "Processing input files\n");
@@ -130,6 +140,10 @@ main ( int argc, char **argv )
   /* Write records */
   if ( writerecords (&recmap) )
     return 1;
+
+  /* Shut down the connection to DataLink server */
+  if ( dlconn && dlconn->link != -1 )
+    dl_disconnect (dlconn);
   
   return 0;
 }  /* End of main() */
@@ -153,10 +167,7 @@ readfiles (RecordMap *recmap)
   int totalrecs  = 0;
   int totalsamps = 0;
   int totalfiles = 0;
-  
-  Selections *matchsp = 0;
-  SelectTime *matchstp = 0;
-  
+    
   Record *rec = 0;
   
   off_t fpos = 0;
@@ -166,7 +177,6 @@ readfiles (RecordMap *recmap)
   char srcname[50];
   char stime[30];
   
-  int infilenamelen = 0;
   int retcode;
   
   /* Read all input files and populate record list */
@@ -176,7 +186,7 @@ readfiles (RecordMap *recmap)
   while ( flp != 0 )
     {
       /* Loop over the input file */
-      while ( (retcode = ms_readmsr_main (&msfp, &msr, flp->infilename, reclen, &fpos, NULL, 1, 0, selections, verbose-2))
+      while ( (retcode = ms_readmsr_main (&msfp, &msr, flp->infilename, reclen, &fpos, NULL, 1, 0, NULL, verbose-2))
 	      == MS_NOERROR )
 	{
 	  recstarttime = msr->starttime;
@@ -234,21 +244,7 @@ readfiles (RecordMap *recmap)
 		  continue;
 		}
 	    }
-	  
-	  /* Check if record is matched by selection */
-	  if ( selections )
-	    {
-	      if ( ! (matchsp = ms_matchselect (selections, srcname, recstarttime, recendtime, &matchstp)) )
-		{
-		  if ( verbose >= 3 )
-		    {
-		      ms_hptime2seedtimestr (recstarttime, stime, 1);
-		      ms_log (1, "Skipping (selection) %s, %s\n", srcname, stime);
-		    }
-		  continue;
-		}
-	    }
-	  
+	  	  
 	  if ( verbose > 2 )
 	    msr_print (msr, verbose - 3);
 	  
@@ -323,11 +319,8 @@ writerecords (RecordMap *recmap)
   static uint64_t totalbytesout = 0;
   char *recordptr = NULL;
   char errflag = 0;
-  long suffix = 0;
-  int rv;
   
   Record *rec;
-  Record *recnext;
   Filelink *flp;
   
   FILE *ofp = 0;
@@ -412,6 +405,26 @@ writerecords (RecordMap *recmap)
 	    }
 	}
       
+      /* Send to DataLink server if specified */
+      if ( dlconn )
+	{
+          while ( sendrecord (recordptr, rec->reclen) )
+            {
+              if ( verbose )
+                ms_log (1, "Re-connecting to DataLink server\n");
+              
+              /* Re-connect to DataLink server and sleep if error connecting */
+              if ( dlconn->link != -1 )
+                dl_disconnect (dlconn);
+              
+              if ( dl_connect (dlconn) < 0 )
+                {
+                  ms_log (2, "Error re-connecting to DataLink server, sleeping 10 seconds\n");
+                  sleep (10);
+                }
+            }
+	}
+      
       totalrecsout++;
       totalbytesout += rec->reclen;
       
@@ -449,36 +462,43 @@ writerecords (RecordMap *recmap)
 
 
 /***************************************************************************
- * printrecordmap():
+ * sendrecord:
  *
- * Print record map to stdout.
+ * Send the specified record to the DataLink server.
+ *
+ * Returns 0 on success, and -1 on failure
  ***************************************************************************/
-static void
-printrecordmap (RecordMap *recmap, flag details)
+static int
+sendrecord (char *record, int reclen)
 {
-  char stime[30];
-  char etime[30];
-  Record *rec;
+  static MSRecord *msr = NULL;
+  hptime_t endtime;
+  char streamid[100];
+  int rv;
   
-  if ( ! recmap )
-    return;
-  
-  rec = recmap->first;
-  
-  ms_log (0, "Record map contains %lld records:\n", recmap->recordcnt);
-  
-  while ( rec )
+  /* Parse Mini-SEED header */
+  if ( (rv = msr_unpack (record, reclen, &msr, 0, 0)) != MS_NOERROR )
     {
-      ms_log (0, "  Filename: %s  Offset: %llu  RecLen: %d\n",
-	      rec->flp->infilename, (long long unsigned)rec->offset, rec->reclen);
-      
-      ms_hptime2seedtimestr (rec->starttime, stime, 1);
-      ms_hptime2seedtimestr (rec->endtime, etime, 1);
-      ms_log (0, "        Start: %s       End: %s\n", stime, etime);
-      
-      rec = rec->next;
+      ms_recsrcname (record, streamid, 0);
+      ms_log (2, "Error unpacking %s: %s\n", streamid, ms_errorstr(rv));
+      return -1;
     }
-}  /* End of printrecordmap() */
+  
+  /* Generate stream ID for this record: NET_STA_LOC_CHAN/MSEED */
+  msr_srcname (msr, streamid, 0);
+  strcat (streamid, "/MSEED");
+  
+  /* Determine high precision end time */
+  endtime = msr_endtime (msr);
+  
+  /* Send record to server */
+  if ( dl_write (dlconn, record, reclen, streamid, msr->starttime, endtime, 0) < 0 )
+    {
+      return -1;
+    }
+  
+  return 0;
+}  /* End of sendrecord() */
 
 
 /***************************************************************************
@@ -621,6 +641,7 @@ processparam (int argcount, char **argvec)
   char *selectfile = 0;
   char *matchpattern = 0;
   char *rejectpattern = 0;
+  char *dladdress = 0;
   char *tptr;
   
   /* Process all command line arguments */
@@ -668,6 +689,10 @@ processparam (int argcount, char **argvec)
         {
           outputfile = getoptval(argcount, argvec, optind++);
         }
+      else if (strcmp (argvec[optind], "-dl") == 0)
+        {
+          dladdress = getoptval(argcount, argvec, optind++);
+        }
       else if (strcmp (argvec[optind], "-sum") == 0)
 	{
 	  basicsum = 1;
@@ -713,23 +738,20 @@ processparam (int argcount, char **argvec)
       exit (0);
     }
 
-  /* Make sure output file(s) were specified or replacing originals */
-  if ( ! outputfile )
+  /* Make sure output file or server was specified */
+  if ( ! outputfile && ! dladdress )
     {
-      ms_log (2, "No output file was specified\n\n");
+      ms_log (2, "No output file or server was specified\n\n");
       ms_log (1, "%s version %s\n\n", PACKAGE, VERSION);
       ms_log (1, "Try %s -h for usage\n", PACKAGE);
       exit (0);
     }
-    
-  /* Read data selection file */
-  if ( selectfile )
+  
+  /* Allocate and initialize DataLink connection description */
+  if ( ! (dlconn = dl_newdlcp (dladdress, argvec[0])) )
     {
-      if ( ms_readselectionsfile (&selections, selectfile) < 0 )
-	{
-	  ms_log (2, "Cannot read data selection file\n");
-	  exit (1);
-	}
+      ms_log (2, "Cannot allocation DataLink descriptor\n");
+      exit (1);
     }
   
   /* Expand match pattern from a file if prefixed by '@' */
@@ -1094,90 +1116,6 @@ readregexfile (char *regexfile, char **pppattern)
 
 
 /***************************************************************************
- * calcsize:
- * 
- * Calculate a size in bytes for the specified size string.  If the
- * string is terminated with the following suffixes the specified
- * scaling will be applied:
- *
- * 'K' or 'k' : kilobytes - value * 1024
- * 'M' or 'm' : megabytes - value * 1024*1024
- * 'G' or 'g' : gigabytes - value * 1024*1024*1024
- *
- * Returns a size in bytes on success and 0 on error.
- ***************************************************************************/
-static off_t
-calcsize (char *sizestr)
-{
-  off_t size = 0;
-  char *parsestr;
-  int termchar;
-  
-  if ( ! sizestr )
-    return 0;
-
-  if ( ! (parsestr = strdup (sizestr)) )
-    return 0;
-  
-  termchar = strlen (parsestr) - 1;
-  
-  if ( termchar <= 0 )
-    return 0;
-  
-  /* For kilobytes */
-  if ( parsestr[termchar] == 'K' || parsestr[termchar] == 'k' )
-    {
-      parsestr[termchar] = '\0';
-      size = strtoull (parsestr, NULL, 10);
-      if ( ! size )
-        {
-	  ms_log (1, "calcsize(): Error converting %s to integer", parsestr);
-          return 0;
-        }
-      size *= 1024;
-    }  
-  /* For megabytes */
-  else if ( parsestr[termchar] == 'M' || parsestr[termchar] == 'm' )
-    {
-      parsestr[termchar] = '\0';
-      size = strtoull (parsestr, NULL, 10);
-      if ( ! size )
-        {
-	  ms_log (1, "calcsize(): Error converting %s to integer", parsestr);
-          return 0;
-        }
-      size *= 1024*1024;
-    }
-  /* For gigabytes */
-  else if ( parsestr[termchar] == 'G' || parsestr[termchar] == 'g' )
-    {
-      parsestr[termchar] = '\0';
-      size = strtoull (parsestr, NULL, 10);
-      if ( ! size )
-        {
-	  ms_log (1, "calcsize(): Error converting %s to integer", parsestr);
-          return 0;
-        }
-      size *= 1024*1024*1024;
-    }
-  else
-    {
-      size = strtoull(parsestr, NULL, 10);
-      if ( ! size )
-        {
-	  ms_log (1, "calcsize(): Error converting %s to integer", parsestr);
-	  return 0;
-        }
-    }
-  
-  if ( parsestr )
-    free (parsestr);
-  
-  return size;
-}  /* End of calcsize() */
-
-
-/***************************************************************************
  * usage():
  * Print the usage message.
  ***************************************************************************/
@@ -1194,7 +1132,6 @@ usage (void)
            " -sum         Print a basic summary after reading all input files\n"
 	   "\n"
 	   " ## Data selection options ##\n"
-	   " -s file      Specify a file containing selection criteria\n"
 	   " -ts time     Limit to records that contain or start after time\n"
 	   " -te time     Limit to records that contain or end before time\n"
 	   "                time format: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' delimiters: [,:.]\n"
@@ -1203,6 +1140,7 @@ usage (void)
 	   "                Regular expressions are applied to: 'NET_STA_LOC_CHAN_QUAL'\n"
 	   "\n"
 	   " -o file      Specify an output file\n"
+	   " -dl server   Specify a DataLink server destination in host:port format\n"
 	   "\n"
 	   " ## Input data ##\n"
 	   " file#        Files(s) of Mini-SEED records\n"
