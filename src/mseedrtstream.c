@@ -16,8 +16,6 @@
 
 /* Option: Delay send based on actual time, accelerated time */
 
-/* Option: Add DataLink output */
-
 /* Option: Restamp times to make "current" */
 
 #include <stdio.h>
@@ -65,13 +63,14 @@ typedef struct RecordMap_s {
 
 static int readfiles (RecordMap *recmap);
 static int writerecords (RecordMap *recmap);
-static int sendrecord (char *record, int reclen);
+static int sendrecord (char *recbuf, Record *rec);
 
 static int sortrecmap (RecordMap *recmap);
 static int recordcmp (Record *rec1, Record *rec2);
 
 static int  processparam (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
+static hptime_t gethptime (void);
 static int  setofilelimit (int limit);
 static int  addfile (char *filename);
 static int  addlistfile (char *filename);
@@ -120,27 +119,31 @@ main ( int argc, char **argv )
 	}
     }
   
-  if ( verbose > 2 )
-    ms_log (1, "Processing input files\n");
-  
   recmap.recordcnt = 0;
   recmap.first = NULL;
   recmap.last = NULL;
+  
+  if ( verbose > 1 )
+    ms_log (1, "Reading input files\n");
   
   /* Read and process all files specified on the command line */
   if ( readfiles (&recmap) )
     return 1;
   
+  if ( verbose > 1 )
+    ms_log (1, "Sorting record list\n");
+  
+  /* Sort the record map into time order */
   if ( sortrecmap (&recmap) )
     {
       ms_log (2, "Error sorting record list\n");
       return 1;
     }
-
+  
   /* Write records */
   if ( writerecords (&recmap) )
     return 1;
-
+  
   /* Shut down the connection to DataLink server */
   if ( dlconn && dlconn->link != -1 )
     dl_disconnect (dlconn);
@@ -153,7 +156,7 @@ main ( int argc, char **argv )
  * readfiles:
  *
  * Read input files specified as a Filelink list and populate an
- * RecordMap.
+ * RecordMap (list of records).
  *
  * Returns 0 on success and -1 otherwise.
  ***************************************************************************/
@@ -317,23 +320,22 @@ writerecords (RecordMap *recmap)
 {
   static uint64_t totalrecsout = 0;
   static uint64_t totalbytesout = 0;
-  char *recordptr = NULL;
-  char errflag = 0;
-  
-  Record *rec;
+  hptime_t now;
   Filelink *flp;
+  Record *rec;
+  char errflag = 0;
   
   FILE *ofp = 0;
   
   if ( ! recmap )
     return 1;
-  
-  if ( verbose )
-    ms_log (1, "Writing output data\n");
-  
+    
   /* Open the output file if specified */
   if ( outputfile )
-    {      
+    {
+      if ( verbose )
+	ms_log (1, "Writing output data to %s\n", outputfile);
+      
       if ( strcmp (outputfile, "-") == 0 )
         {
           ofp = stdout;
@@ -344,6 +346,12 @@ writerecords (RecordMap *recmap)
 		  outputfile, strerror(errno));
           return 1;
         }
+    }
+  
+  if ( dlconn )
+    {
+      if ( verbose )
+	ms_log (1, "Sending output data to %s\n", dlconn->addr);
     }
   
   /* Loop through record list and send/write records */
@@ -381,7 +389,7 @@ writerecords (RecordMap *recmap)
 	  errflag = 1;
 	  break;
 	}
-	      
+      
       /* Read record into buffer */
       if ( fread (recordbuf, rec->reclen, 1, rec->flp->infp) != 1 )
 	{
@@ -392,12 +400,29 @@ writerecords (RecordMap *recmap)
 	  break;
 	}
       
-      recordptr = recordbuf;
+      if ( verbose > 1 )
+	{
+	  char srcname[50];
+	  char timestr[50];
+	  ms_recsrcname (recordbuf, srcname, 0);
+	  ms_hptime2isotimestr (rec->starttime, timestr, 1);
+	  ms_log (1, "Writing %s %s\n", srcname, timestr);
+	}
+      
+      if ( meterdelay )
+	{
+	  now = gethptime();
+	  
+	  // Repack header with expected time
+	  
+	  // Sleep as needed
+	  
+	}
       
       /* Write to a single output file if specified */
       if ( ofp )
 	{
-	  if ( fwrite (recordptr, rec->reclen, 1, ofp) != 1 )
+	  if ( fwrite (recordbuf, rec->reclen, 1, ofp) != 1 )
 	    {
 	      ms_log (2, "Cannot write to '%s'\n", outputfile);
 	      errflag = 1;
@@ -408,7 +433,7 @@ writerecords (RecordMap *recmap)
       /* Send to DataLink server if specified */
       if ( dlconn )
 	{
-          while ( sendrecord (recordptr, rec->reclen) )
+          while ( sendrecord (recordbuf, rec) )
             {
               if ( verbose )
                 ms_log (1, "Re-connecting to DataLink server\n");
@@ -469,30 +494,20 @@ writerecords (RecordMap *recmap)
  * Returns 0 on success, and -1 on failure
  ***************************************************************************/
 static int
-sendrecord (char *record, int reclen)
+sendrecord (char *recbuf, Record *rec)
 {
-  static MSRecord *msr = NULL;
-  hptime_t endtime;
   char streamid[100];
-  int rv;
   
-  /* Parse Mini-SEED header */
-  if ( (rv = msr_unpack (record, reclen, &msr, 0, 0)) != MS_NOERROR )
-    {
-      ms_recsrcname (record, streamid, 0);
-      ms_log (2, "Error unpacking %s: %s\n", streamid, ms_errorstr(rv));
-      return -1;
-    }
+  if ( ! recbuf || ! rec )
+    return -1;
   
   /* Generate stream ID for this record: NET_STA_LOC_CHAN/MSEED */
-  msr_srcname (msr, streamid, 0);
+  ms_recsrcname (recbuf, streamid, 0);
   strcat (streamid, "/MSEED");
   
-  /* Determine high precision end time */
-  endtime = msr_endtime (msr);
-  
   /* Send record to server */
-  if ( dl_write (dlconn, record, reclen, streamid, msr->starttime, endtime, 0) < 0 )
+  if ( dl_write (dlconn, recbuf, rec->reclen, streamid,
+		 rec->starttime, rec->endtime, 0) < 0 )
     {
       return -1;
     }
@@ -661,6 +676,10 @@ processparam (int argcount, char **argvec)
 	{
 	  verbose += strspn (&argvec[optind][1], "v");
 	}
+      else if (strcmp (argvec[optind], "-sum") == 0)
+	{
+	  basicsum = 1;
+	}
       else if (strcmp (argvec[optind], "-s") == 0)
 	{
 	  selectfile = getoptval(argcount, argvec, optind++);
@@ -693,10 +712,6 @@ processparam (int argcount, char **argvec)
         {
           dladdress = getoptval(argcount, argvec, optind++);
         }
-      else if (strcmp (argvec[optind], "-sum") == 0)
-	{
-	  basicsum = 1;
-	}
       else if (strncmp (argvec[optind], "-", 1) == 0 &&
 	       strlen (argvec[optind]) > 1 )
 	{
@@ -748,7 +763,7 @@ processparam (int argcount, char **argvec)
     }
   
   /* Allocate and initialize DataLink connection description */
-  if ( ! (dlconn = dl_newdlcp (dladdress, argvec[0])) )
+  if ( dladdress && ! (dlconn = dl_newdlcp (dladdress, argvec[0])) )
     {
       ms_log (2, "Cannot allocation DataLink descriptor\n");
       exit (1);
@@ -871,6 +886,31 @@ getoptval (int argcount, char **argvec, int argopt)
   exit (1);
   return 0;
 }  /* End of getoptval() */
+
+
+/***********************************************************************//**
+ * gethptime:
+ *
+ * Determine the current time from the system as a hptime_t value.
+ *
+ * Returns current time as a hptime_t value.
+ ***************************************************************************/
+static hptime_t
+gethptime (void)
+{
+  hptime_t hptime;
+  struct timeval tv;
+  
+  if ( gettimeofday (&tv, (struct timezone *) 0) )
+    {
+      return HPTERROR;
+    }
+  
+  hptime = ((int64_t)tv.tv_sec * DLTMODULUS) +
+    ((int64_t)tv.tv_usec * (DLTMODULUS/1000000));
+  
+  return hptime;
+}  /* End of gethptime() */
 
 
 /***************************************************************************
@@ -1139,10 +1179,10 @@ usage (void)
 	   " -R reject    Limit to records not matching the specfied regular expression\n"
 	   "                Regular expressions are applied to: 'NET_STA_LOC_CHAN_QUAL'\n"
 	   "\n"
+	   " ## Output and input options ##\n"
 	   " -o file      Specify an output file\n"
 	   " -dl server   Specify a DataLink server destination in host:port format\n"
 	   "\n"
-	   " ## Input data ##\n"
 	   " file#        Files(s) of Mini-SEED records\n"
 	   "\n");
   }  /* End of usage() */
