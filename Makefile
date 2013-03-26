@@ -1,5 +1,5 @@
 
-DIRS = libmseed src
+DIRS = libdali libmseed src
 
 all clean static install gcc gcc32 gcc64 debug gccdebug gcc23debug gcc64debug ::
 	@for d in $(DIRS) ; do \
