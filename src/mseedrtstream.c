@@ -11,12 +11,10 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center.
  *
- * modified 2013.084
+ * modified 2013.087
  ***************************************************************************/
 
-/* Option: Delay send based on actual time, accelerated time */
-
-/* Option: Restamp times to make "current" */
+/* ToDo? Restamp record start times to simulate current data flow */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,6 +85,9 @@ static hptime_t endtime       = HPTERROR;  /* Limit to records containing or bef
 
 static regex_t *match         = 0;    /* Compiled match regex */
 static regex_t *reject        = 0;    /* Compiled reject regex */
+
+static flag     streamdelay   = 0;    /* Delay output to simulate real time stream */
+static double   delayfactor   = 1.0;  /* Delay factor, 1.0 is actual time stepping */
 
 static char    *outputfile    = 0;    /* Single output file */
 
@@ -321,6 +322,7 @@ writerecords (RecordMap *recmap)
   static uint64_t totalrecsout = 0;
   static uint64_t totalbytesout = 0;
   hptime_t now;
+  hptime_t offset = HPTERROR;
   Filelink *flp;
   Record *rec;
   char errflag = 0;
@@ -409,14 +411,25 @@ writerecords (RecordMap *recmap)
 	  ms_log (1, "Writing %s %s\n", srcname, timestr);
 	}
       
-      if ( meterdelay )
+      if ( streamdelay )
 	{
+	  hptime_t snooze;
 	  now = gethptime();
 	  
-	  // Repack header with expected time
+	  /* Calculate offset between initial packet and current time */
+	  if ( offset == HPTERROR )
+	    offset = now - rec->endtime;
 	  
-	  // Sleep as needed
+	  snooze = offset - (now - rec->endtime);
 	  
+	  if ( snooze > 0 )
+	    {
+	      if ( verbose > 1 )
+		ms_log (1, "Sleeping %.2f seconds to simulate streaming\n",
+			(double) MS_HPTIME2EPOCH(snooze / delayfactor));
+	      
+	      dlp_usleep ( (unsigned long int) (snooze / delayfactor + 0.5) );
+	    }
 	}
       
       /* Write to a single output file if specified */
@@ -704,6 +717,15 @@ processparam (int argcount, char **argvec)
 	{
 	  rejectpattern = strdup(getoptval(argcount, argvec, optind++));
 	}
+      else if (strcmp (argvec[optind], "-sd") == 0)
+        {
+          streamdelay = 1;
+        }
+      else if (strcmp (argvec[optind], "-df") == 0)
+        {
+          streamdelay = 1;
+	  delayfactor = strtod (getoptval(argcount, argvec, optind++), NULL);
+        }
       else if (strcmp (argvec[optind], "-o") == 0)
         {
           outputfile = getoptval(argcount, argvec, optind++);
@@ -1178,6 +1200,9 @@ usage (void)
 	   " -M match     Limit to records matching the specified regular expression\n"
 	   " -R reject    Limit to records not matching the specfied regular expression\n"
 	   "                Regular expressions are applied to: 'NET_STA_LOC_CHAN_QUAL'\n"
+	   "\n"
+	   " -sd          Delay output of data to simulate real time flow\n"
+	   " -df factor   Delay factor, to retard or accelrate simulated time, default 1\n"
 	   "\n"
 	   " ## Output and input options ##\n"
 	   " -o file      Specify an output file\n"

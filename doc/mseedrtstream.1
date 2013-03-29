@@ -1,4 +1,4 @@
-.TH MSEEDRTSTREAM 2013/03/25
+.TH MSEEDRTSTREAM 2013/03/28
 .SH NAME
 Create simulated real-time stream of Mini-SEED
 
@@ -18,8 +18,8 @@ server (ringserver).
 Multiple options are available to select a subset of data records from
 the specified input files.
 
-Multiple input files will be read in the order specified and processed
-all together as if all the data records were from the same file.  The
+Input files will be read in the order specified and processed all
+together as if all the data records were from the same file.  The
 program must read input data from files, input from pipes, etc. is not
 possible.  Output to a pipe is possible.
 
@@ -41,6 +41,9 @@ Print program usage and exit.
 .IP "-v         "
 Be more verbose.  This flag can be used multiple times ("-v -v" or
 "-vv") for more verbosity.
+
+.IP "-sum         "
+Print a basic summary of input data after reading all the files.
 
 .IP "-ts \fItime\fP"
 Limit processing to Mini-SEED records that start after or contain
@@ -70,6 +73,18 @@ an '@' character it is assumed to indicate a file containing a list of
 expressions to reject, see the \fBMATCH OR REJECT LIST FILE\fR
 section below.
 
+.IP "-sd        fP"
+Stream delay.  Delay the output of miniSEED records in order to
+simulate a real-time stream.  By default records are output as fast as
+possible.
+
+.IP "-df \fIfactor\fP"
+Apply the \fIfactor\fP to the delay in order to retard or accelerate
+the simulation of real-time streaming.  The default factor is 1.0 to
+mimic true time stepping.  Examples: a value of 2.0 will double the
+rate of simulated time and a value of 0.5 will slow the simulated rate
+of time to 1/2 true time.
+
 .IP "-o \fIfile\fP"
 Write simulated real-time data stream to output \fIfile\fP.  If '-' is
 specified as the output file all output data will be written to
@@ -78,9 +93,6 @@ standard out.  Any existing output file will be overwritten.
 .IP "-dl \fIhost:port\fP"
 Send simulated real-time data stream to DataLink server at \fIhost\fP
 and \fIport\fP. 
-
-.IP "-sum         "
-Print a basic summary of input data after reading all the files.
 
 .SH "INPUT LIST FILE"
 A list file can be used to specify input files, one file per line.
