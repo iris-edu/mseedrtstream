@@ -1202,7 +1202,7 @@ usage (void)
 	   "                Regular expressions are applied to: 'NET_STA_LOC_CHAN_QUAL'\n"
 	   "\n"
 	   " -sd          Delay output of data to simulate real time flow\n"
-	   " -df factor   Delay factor, to retard or accelrate simulated time, default 1\n"
+	   " -df factor   Delay factor, to retard or accelerate simulated time, default 1\n"
 	   "\n"
 	   " ## Output and input options ##\n"
 	   " -o file      Specify an output file\n"
