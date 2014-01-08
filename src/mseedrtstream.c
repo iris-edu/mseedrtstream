@@ -30,7 +30,7 @@
 #include <libdali.h>
 #include <libmseed.h>
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 #define PACKAGE "mseedrtstream"
 
 /* Input/output file information containers */
