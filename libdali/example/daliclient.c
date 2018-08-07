@@ -8,7 +8,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2008.256
+ * modified 2013.210
  ***************************************************************************/
 
 #include <stdio.h>
@@ -286,7 +286,6 @@ usage (void)
 	   " -V             report program version\n"
 	   " -h             show this usage message\n"
 	   " -v             be more verbose, multiple flags can be used\n"
-	   " -p             print details of data packets\n\n"
 	   " -k secs        specify keepalive interval in seconds\n"
 	   " -m match       specify stream ID matching pattern\n"
 	   " -r reject      specify stream ID rejecting pattern\n"

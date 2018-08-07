@@ -1,3 +1,30 @@
+2016.10.17: 1.7
+	- Change socket type to SOCKET and set appropriately for platform.
+	- Modernize portable.[ch], change DLP_WIN32 to DLP_WIN and DLP_GLIBC2
+	to DLP_WIN and re-oragnize includes.
+	- Change host name resolution to use getaddrinfo() on all platforms
+	except Windows.  Support is now nearly ubiquitous.  Still limited to
+	IPv4 addresses.
+	- Cleanup make files, remove unused targets and need for ntwin32.mak.
+	- Add target for Cygwin to portable.h.
+	- Clarify licensing to be LGPLv3, include LICENSE.txt and INSTALL.
+	- Reformat all source code using included clang-format profile.
+
+2013.210: 1.6
+	- dl_position(): return 0 when packet was not found.  Differentiates
+	between successful request (but no match) and function error.
+	Previously this function returned either a positive packet ID value
+	or -1, where -1 was returned when packet was not found.
+	Fixes from Doug Neuhauser:
+	- dl_position(): allow specification of LIBDALI_POSITION_EARLIEST and
+	LIBDALI_POSITION_LATEST in parameter sanity check.  Oops.
+	- dl_disconnect(): continue shutdown when socket value is 0.
+
+2011.262: 1.5
+	- Add '_ld' suffix to declaration of pivotal_gmtime_r_stamp in
+	timeutils.c to avoid conflicts with other libraries.  Thanks to Doug
+	Neuhauser for the tip.
+
 2011.004: 1.4
 	- Correct return code for dl_position() for errors.
 	- Increase verbosity level for debugging message in dl_write().

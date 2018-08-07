@@ -1,4 +1,4 @@
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @file logging.c
  *
  * Log handling routines for libdali.
@@ -15,24 +15,23 @@
  * modified: 2008.193
  ***************************************************************************/
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 
 #include "libdali.h"
 
 void dl_loginit_main (DLLog *logp, int verbosity,
-		      void (*log_print)(char*), const char *logprefix,
-		      void (*diag_print)(char*), const char *errprefix);
+                      void (*log_print) (char *), const char *logprefix,
+                      void (*diag_print) (char *), const char *errprefix);
 
 int dl_log_main (DLLog *logp, int level, int verb, va_list *varlist);
 
 /** Initial global logging parameters */
 DLLog gDLLog = {NULL, NULL, NULL, NULL, 0};
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Initialize global logging system parameters
  *
  * Initialize the global logging parameters.
@@ -41,14 +40,13 @@ DLLog gDLLog = {NULL, NULL, NULL, NULL, 0};
  ***************************************************************************/
 void
 dl_loginit (int verbosity,
-	    void (*log_print)(char*), const char *logprefix,
-	    void (*diag_print)(char*), const char *errprefix)
+            void (*log_print) (char *), const char *logprefix,
+            void (*diag_print) (char *), const char *errprefix)
 {
   dl_loginit_main (&gDLLog, verbosity, log_print, logprefix, diag_print, errprefix);
-}  /* End of dl_loginit() */
+} /* End of dl_loginit() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Initialize logging parameters specific to a DLCP
  *
  * Initialize DLCP specific logging parameters.  If the logging parameters
@@ -59,28 +57,27 @@ dl_loginit (int verbosity,
  ***************************************************************************/
 void
 dl_loginit_r (DLCP *dlconn, int verbosity,
-	      void (*log_print)(char*), const char *logprefix,
-	      void (*diag_print)(char*), const char *errprefix)
+              void (*log_print) (char *), const char *logprefix,
+              void (*diag_print) (char *), const char *errprefix)
 {
-  if ( ! dlconn )
+  if (!dlconn)
     return;
 
-  if ( dlconn->log == NULL )
-    {
-      dlconn->log = (DLLog *) malloc (sizeof(DLLog));
+  if (dlconn->log == NULL)
+  {
+    dlconn->log = (DLLog *)malloc (sizeof (DLLog));
 
-      dlconn->log->log_print = NULL;
-      dlconn->log->logprefix = NULL;
-      dlconn->log->diag_print = NULL;
-      dlconn->log->errprefix = NULL;
-      dlconn->log->verbosity = 0;
-    }
+    dlconn->log->log_print  = NULL;
+    dlconn->log->logprefix  = NULL;
+    dlconn->log->diag_print = NULL;
+    dlconn->log->errprefix  = NULL;
+    dlconn->log->verbosity  = 0;
+  }
 
-  dl_loginit_main(dlconn->log, verbosity, log_print, logprefix, diag_print, errprefix);
-}  /* End of dl_loginit_r() */
+  dl_loginit_main (dlconn->log, verbosity, log_print, logprefix, diag_print, errprefix);
+} /* End of dl_loginit_r() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Initialize logging parameters for a specific DLLog
  *
  * Initialize DLLog specific logging parameters.  If the logging parameters
@@ -93,33 +90,32 @@ dl_loginit_r (DLCP *dlconn, int verbosity,
  ***************************************************************************/
 DLLog *
 dl_loginit_rl (DLLog *log, int verbosity,
-	       void (*log_print)(char*), const char *logprefix,
-	       void (*diag_print)(char*), const char *errprefix)
+               void (*log_print) (char *), const char *logprefix,
+               void (*diag_print) (char *), const char *errprefix)
 {
   DLLog *logp;
 
-  if ( log == NULL )
-    {
-      logp = (DLLog *) malloc (sizeof(DLLog));
+  if (log == NULL)
+  {
+    logp = (DLLog *)malloc (sizeof (DLLog));
 
-      logp->log_print = NULL;
-      logp->logprefix = NULL;
-      logp->diag_print = NULL;
-      logp->errprefix = NULL;
-      logp->verbosity = 0;
-    }
+    logp->log_print  = NULL;
+    logp->logprefix  = NULL;
+    logp->diag_print = NULL;
+    logp->errprefix  = NULL;
+    logp->verbosity  = 0;
+  }
   else
-    {
-      logp = log;
-    }
+  {
+    logp = log;
+  }
 
   dl_loginit_main (logp, verbosity, log_print, logprefix, diag_print, errprefix);
 
   return logp;
-}  /* End of dl_loginit_rl() */
+} /* End of dl_loginit_rl() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Initialize the logging system
  *
  * Initialize the logging subsystem.  The logging paramters determine
@@ -150,49 +146,48 @@ dl_loginit_rl (DLLog *log, int verbosity,
  ***************************************************************************/
 void
 dl_loginit_main (DLLog *logp, int verbosity,
-		 void (*log_print)(char*), const char *logprefix,
-		 void (*diag_print)(char*), const char *errprefix)
+                 void (*log_print) (char *), const char *logprefix,
+                 void (*diag_print) (char *), const char *errprefix)
 {
-  if ( ! logp )
+  if (!logp)
     return;
 
   logp->verbosity = verbosity;
 
-  if ( log_print )
+  if (log_print)
     logp->log_print = log_print;
 
-  if ( logprefix )
+  if (logprefix)
+  {
+    if (strlen (logprefix) >= MAX_LOG_MSG_LENGTH)
     {
-      if ( strlen(logprefix) >= MAX_LOG_MSG_LENGTH )
-	{
-	  dl_log_rl (logp, 2, 0, "log message prefix is too large\n");
-	}
-      else
-	{
-	  logp->logprefix = logprefix;
-	}
+      dl_log_rl (logp, 2, 0, "log message prefix is too large\n");
     }
+    else
+    {
+      logp->logprefix = logprefix;
+    }
+  }
 
-  if ( diag_print )
+  if (diag_print)
     logp->diag_print = diag_print;
 
-  if ( errprefix )
+  if (errprefix)
+  {
+    if (strlen (errprefix) >= MAX_LOG_MSG_LENGTH)
     {
-      if ( strlen(errprefix) >= MAX_LOG_MSG_LENGTH )
-	{
-	  dl_log_rl (logp, 2, 0, "error message prefix is too large\n");
-	}
-      else
-	{
-	  logp->errprefix = errprefix;
-	}
+      dl_log_rl (logp, 2, 0, "error message prefix is too large\n");
     }
+    else
+    {
+      logp->errprefix = errprefix;
+    }
+  }
 
   return;
-}  /* End of dl_loginit_main() */
+} /* End of dl_loginit_main() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Log a message using the global logging parameters
  *
  * A wrapper to dl_log_main() that uses the global logging parameters.
@@ -208,7 +203,7 @@ dl_log (int level, int verb, ...)
 {
   int retval;
   va_list varlist;
-  
+
   va_start (varlist, verb);
 
   retval = dl_log_main (&gDLLog, level, verb, &varlist);
@@ -216,10 +211,9 @@ dl_log (int level, int verb, ...)
   va_end (varlist);
 
   return retval;
-}  /* End of dl_log() */
+} /* End of dl_log() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Log a message using the log parameters from a DLCP
  *
  * A wrapper to dl_log_main() that uses the logging parameters in a
@@ -240,24 +234,23 @@ dl_log_r (const DLCP *dlconn, int level, int verb, ...)
   va_list varlist;
   DLLog *logp;
 
-  if ( ! dlconn )
+  if (!dlconn)
     logp = &gDLLog;
-  else if ( ! dlconn->log )
+  else if (!dlconn->log)
     logp = &gDLLog;
   else
     logp = dlconn->log;
-  
+
   va_start (varlist, verb);
-  
+
   retval = dl_log_main (logp, level, verb, &varlist);
 
   va_end (varlist);
 
   return retval;
-}  /* End of dl_log_r() */
+} /* End of dl_log_r() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Log a message using the log parameters from a DLCP
  *
  * A wrapper to dl_log_main() that uses the logging parameters in a
@@ -278,22 +271,21 @@ dl_log_rl (DLLog *log, int level, int verb, ...)
   va_list varlist;
   DLLog *logp;
 
-  if ( ! log )
+  if (!log)
     logp = &gDLLog;
   else
     logp = log;
-  
+
   va_start (varlist, verb);
-  
+
   retval = dl_log_main (logp, level, verb, &varlist);
 
   va_end (varlist);
 
   return retval;
-}  /* End of dl_log_rl() */
+} /* End of dl_log_rl() */
 
-
-/***********************************************************************//**
+/***********************************************************************/ /**
  * @brief Primary log message processing routine
  *
  * Prinmary logging/printing routine.
@@ -303,7 +295,7 @@ dl_log_rl (DLLog *log, int level, int verb, ...)
  *
  * The function uses logging parameters specified in the supplied
  * DLLog.
- * 
+ *
  * This function expects 3+ arguments, message level, verbosity level,
  * fprintf format, and fprintf arguments.  If the verbosity level is
  * less than or equal to the set verbosity (see dl_loginit_main()),
@@ -340,90 +332,90 @@ dl_log_main (DLLog *logp, int level, int verb, va_list *varlist)
 {
   static char message[MAX_LOG_MSG_LENGTH];
   int retvalue = 0;
-  
+
   message[0] = '\0';
-  
+
   if (verb <= logp->verbosity)
+  {
+    int presize;
+    const char *format;
+
+    format = va_arg (*varlist, const char *);
+
+    if (level >= 2) /* Error message */
     {
-      int presize;
-      const char *format;
+      if (logp->errprefix != NULL)
+      {
+        strncpy (message, logp->errprefix, MAX_LOG_MSG_LENGTH);
+      }
+      else
+      {
+        strncpy (message, "error: ", MAX_LOG_MSG_LENGTH);
+      }
 
-      format = va_arg (*varlist, const char *);
+      presize  = strlen (message);
+      retvalue = vsnprintf (&message[presize],
+                            MAX_LOG_MSG_LENGTH - presize,
+                            format, *varlist);
 
-      if ( level >= 2 )  /* Error message */
-	{
-	  if ( logp->errprefix != NULL )
-	    {
-	      strncpy (message, logp->errprefix, MAX_LOG_MSG_LENGTH);
-	    }
-	  else
-	    {
-	      strncpy (message, "error: ", MAX_LOG_MSG_LENGTH);
-	    }
+      message[MAX_LOG_MSG_LENGTH - 1] = '\0';
 
-	  presize = strlen(message);
-	  retvalue = vsnprintf (&message[presize],
-				MAX_LOG_MSG_LENGTH - presize,
-				format, *varlist);
-
-	  message[MAX_LOG_MSG_LENGTH - 1] = '\0';
-
-	  if ( logp->diag_print != NULL )
-	    {
-	      logp->diag_print (message);
-	    }
-	  else
-	    {
-	      fprintf(stderr, "%s", message);
-	    }
-	}
-      else if ( level == 1 )  /* Diagnostic message */
-	{
-	  if ( logp->logprefix != NULL )
-	    {
-	      strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
-	    }
-
-	  presize = strlen(message);
-	  retvalue = vsnprintf (&message[presize],
-				MAX_LOG_MSG_LENGTH - presize,
-				format, *varlist);
-
-	  message[MAX_LOG_MSG_LENGTH - 1] = '\0';
-
-	  if ( logp->diag_print != NULL )
-	    {
-	      logp->diag_print (message);
-	    }
-	  else
-	    {
-	      fprintf(stderr, "%s", message);
-	    }
-	}
-      else if ( level == 0 )  /* Normal log message */
-	{
-	  if ( logp->logprefix != NULL )
-	    {
-	      strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
-	    }
-
-	  presize = strlen(message);
-	  retvalue = vsnprintf (&message[presize],
-				MAX_LOG_MSG_LENGTH - presize,
-				format, *varlist);
-
-	  message[MAX_LOG_MSG_LENGTH - 1] = '\0';
-
-	  if ( logp->log_print != NULL )
-	    {
-	      logp->log_print (message);
-	    }
-	  else
-	    {
-	      fprintf(stdout, "%s", message);
-	    }
-	}
+      if (logp->diag_print != NULL)
+      {
+        logp->diag_print (message);
+      }
+      else
+      {
+        fprintf (stderr, "%s", message);
+      }
     }
+    else if (level == 1) /* Diagnostic message */
+    {
+      if (logp->logprefix != NULL)
+      {
+        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
+      }
+
+      presize  = strlen (message);
+      retvalue = vsnprintf (&message[presize],
+                            MAX_LOG_MSG_LENGTH - presize,
+                            format, *varlist);
+
+      message[MAX_LOG_MSG_LENGTH - 1] = '\0';
+
+      if (logp->diag_print != NULL)
+      {
+        logp->diag_print (message);
+      }
+      else
+      {
+        fprintf (stderr, "%s", message);
+      }
+    }
+    else if (level == 0) /* Normal log message */
+    {
+      if (logp->logprefix != NULL)
+      {
+        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
+      }
+
+      presize  = strlen (message);
+      retvalue = vsnprintf (&message[presize],
+                            MAX_LOG_MSG_LENGTH - presize,
+                            format, *varlist);
+
+      message[MAX_LOG_MSG_LENGTH - 1] = '\0';
+
+      if (logp->log_print != NULL)
+      {
+        logp->log_print (message);
+      }
+      else
+      {
+        fprintf (stdout, "%s", message);
+      }
+    }
+  }
 
   return retvalue;
-}  /* End of dl_log_main() */
+} /* End of dl_log_main() */

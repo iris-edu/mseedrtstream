@@ -40,8 +40,8 @@ each parameter:
   } DLCP;
 \endcode
 
-@param sladdr The address of the DataLink server to connect to in 
-		'host:port' format.  example: "st27.gfz-potsdam.de:18000".
+@param addr The address of the DataLink server to connect to in 
+		'host:port' format.  example: "localhost:16000".
 		The host or port specifications are both optional, they
 		will default to 'localhost' and '16000' respectively.
 

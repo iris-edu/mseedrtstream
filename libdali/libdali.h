@@ -1,23 +1,27 @@
 /***********************************************************************//**
  * @file libdali.h
- * 
+ *
  * Interface declarations for the DataLink library (libdali).
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 3 of the
+ * License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License (GNU-LGPL) for more details.  The
- * GNU-LGPL and further information can be found here:
- * http://www.gnu.org/
+ * Lesser General Public License (GNU-LGPL) for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software.
+ * If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Copyright (C) 2016 Chad Trabant, IRIS Data Management Center
  *
  * @author Chad Trabant, IRIS Data Management Center
  *
- * modified: 2011.003
+ * modified: 2016.291
  ***************************************************************************/
 
 #ifndef LIBDALI_H
@@ -29,8 +33,8 @@ extern "C" {
 
 #include "portable.h"
 
-#define LIBDALI_VERSION "1.4"        /**< libdali version */
-#define LIBDALI_RELEASE "2011.005"   /**< libdali release date */
+#define LIBDALI_VERSION "1.7"        /**< libdali version */
+#define LIBDALI_RELEASE "2016.291"   /**< libdali release date */
 
 #define MAXPACKETSIZE       16384    /**< Maximum packet size for libdali */
 #define MAXREGEXSIZE        16384    /**< Maximum regex pattern size */
@@ -85,7 +89,7 @@ typedef struct DLCP_s
   int         iotimeout;        /**< Timeout for network I/O operations (seconds) */
   
   /* Connection parameters maintained internally */
-  int         link;		/**< The network socket descriptor, maintained internally */
+  SOCKET      link;		/**< The network socket descriptor, maintained internally */
   float       serverproto;      /**< Server version of the DataLink protocol, maintained internally */
   int32_t     maxpktsize;       /**< Maximum packet size for server, maintained internally */
   int8_t      writeperm;        /**< Write permission status from server, maintained internally */
@@ -136,7 +140,7 @@ extern void    dl_terminate (DLCP *dlconn);
 extern char   *dl_read_streamlist (DLCP *dlconn, const char *streamfile);
 
 /* network.c */
-extern int     dl_connect (DLCP *dlconn);
+extern SOCKET  dl_connect (DLCP *dlconn);
 extern void    dl_disconnect (DLCP *dlconn);
 extern int     dl_senddata (DLCP *dlconn, void *buffer, size_t sendlen);
 extern int     dl_sendpacket (DLCP *dlconn, void *headerbuf, size_t headerlen,
