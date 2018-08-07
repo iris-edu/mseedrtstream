@@ -3,9 +3,17 @@
 Create simulated real-time stream of miniSEED.  Output can be
 written to a file or submitted to a DataLink server, e.g. ringserver.
 
-## Building
+## Documentation
 
-In most environments a simple 'make' will build the program.
+For usage infromation see the [mseedrtstream manual](doc/mseedrtstream.md) in the
+'doc' directory.
+
+## Downloading and building
+
+The [releases](https://github.com/iris-edu/mseedrtstream/releases) area
+contains release versions.
+
+In most Unix/Linux environments a simple 'make' will build the program.
 
 The CC and CFLAGS environment variables can be used to configure
 the build parameters.
