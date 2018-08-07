@@ -1,4 +1,4 @@
-# <p >Create simulated real-time stream of Mini-SEED</p>
+# <p >Create simulated real-time stream of miniSEED</p>
 
 1. [Name](#)
 1. [Synopsis](#synopsis)
@@ -17,7 +17,7 @@ mseedrtstream [options] file1 [file2 file3 ...]
 
 ## <a id='description'>Description</a>
 
-<p ><b>mseedrtstream</b> reads input files and creates simulated real-time feeds of Mini-SEED data. The most fundamental operation of this program is to read all specified input data and output the records in an order similar to what may be expected from a multiplexed real-time feed.  Data may be written to an output file or sent to a DataLink server (ringserver).</p>
+<p ><b>mseedrtstream</b> reads input files and creates simulated real-time feeds of miniSEED data. The most fundamental operation of this program is to read all specified input data and output the records in an order similar to what may be expected from a multiplexed real-time feed.  Data may be written to an output file or sent to a DataLink server (ringserver).</p>
 
 <p >Multiple options are available to select a subset of data records from the specified input files.</p>
 
@@ -47,11 +47,11 @@ mseedrtstream [options] file1 [file2 file3 ...]
 
 <b>-ts </b><i>time</i>
 
-<p style="padding-left: 30px;">Limit processing to Mini-SEED records that start after or contain <i>time</i>.  The format of the <i>time</i> argument is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either commas (,), colons (:) or periods (.).</p>
+<p style="padding-left: 30px;">Limit processing to miniSEED records that start after or contain <i>time</i>.  The format of the <i>time</i> argument is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either commas (,), colons (:) or periods (.).</p>
 
 <b>-te </b><i>time</i>
 
-<p style="padding-left: 30px;">Limit processing to Mini-SEED records that end before or contain <i>time</i>.  The format of the <i>time</i> argument is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either commas (,), colons (:) or periods (.).</p>
+<p style="padding-left: 30px;">Limit processing to miniSEED records that end before or contain <i>time</i>.  The format of the <i>time</i> argument is: 'YYYY[,DDD,HH,MM,SS,FFFFFF]' where valid delimiters are either commas (,), colons (:) or periods (.).</p>
 
 <b>-M </b><i>match</i>
 
