@@ -3,9 +3,21 @@
  *
  * Network communication routines for DataLink
  *
- * @author Chad Trabant, IRIS Data Management Center
+ * This file is part of the DataLink Library.
  *
- * Version: 2016.291
+ * Copyright (c) 2020 Chad Trabant, IRIS Data Management Center
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  ***************************************************************************/
 
 #include <stdio.h>
@@ -13,17 +25,18 @@
 #include <string.h>
 
 #include "libdali.h"
+#include "portable.h"
 
 /***********************************************************************/ /**
  * @brief Connect to a DataLink server
  *
  * Open a network socket connection to a Datalink server and set
- * 'dlconn->link' to the new descriptor.  Expects 'dlconn->addr' to
- * be in 'host:port' format.  Either the host, port or both are
- * optional, if the host is not specified 'localhost' is assumed, if
- * the port is not specified '16000' is assumed, if neither is
- * specified (only a colon) then 'localhost' and port '16000' are
- * assumed.
+ * 'dlconn->link' to the new descriptor.  Expects 'dlconn->addr' to be
+ * in 'host:port' or 'host\@port' format.  Either the host, port or
+ * both are optional, if the host is not specified 'localhost' is
+ * assumed, if the port is not specified '16000' is assumed, if
+ * neither is specified (only a separator) then 'localhost' and port
+ * '16000' are assumed.
  *
  * If a permanent error is detected (invalid port specified) the
  * dlconn->terminate flag will be set so the dl_collect() family of
@@ -37,13 +50,16 @@
 SOCKET
 dl_connect (DLCP *dlconn)
 {
+  struct addrinfo *addr0 = NULL;
+  struct addrinfo *addr = NULL;
+  struct addrinfo hints;
   SOCKET sock;
   long int nport;
   char nodename[300];
   char nodeport[100];
   char *ptr, *tail;
-  size_t addrlen;
-  struct sockaddr addr;
+  int timeout;
+  int socket_family = -1;
 
   if (dlp_sockstartup ())
   {
@@ -51,80 +67,110 @@ dl_connect (DLCP *dlconn)
     return -1;
   }
 
-  /* Check server address string and use defaults if needed:
-   * If only ':' is specified neither host nor port specified
-   * If no ':' is included no port was specified
-   * If ':' is the first character no host was specified
-   */
-  if (!strcmp (dlconn->addr, ":"))
+  /* Search address host-port separator, first for '@', then ':' */
+  if ((ptr = strchr (dlconn->addr, '@')) == NULL && (ptr = strchr (dlconn->addr, ':')))
   {
-    strcpy (nodename, "localhost");
-    strcpy (nodeport, "16000");
+    /* If first ':' is not the last, this is not a separator */
+    if (strrchr (dlconn->addr, ':') != ptr)
+      ptr = NULL;
   }
-  else if ((ptr = strchr (dlconn->addr, ':')) == NULL)
+
+  /* If address begins with the separator */
+  if (dlconn->addr == ptr)
+  {
+    if (dlconn->addr[1] == '\0')  /* Only a separator */
+    {
+      strcpy (nodename, LD_DEFAULT_HOST);
+      strcpy (nodeport, LD_DEFAULT_PORT);
+    }
+    else /* Only a port */
+    {
+      strcpy (nodename, LD_DEFAULT_HOST);
+      strncpy (nodeport, dlconn->addr + 1, sizeof (nodeport));
+    }
+  }
+  /* Otherwise if no separator, use default port */
+  else if (ptr == NULL)
   {
     strncpy (nodename, dlconn->addr, sizeof (nodename));
-    strcpy (nodeport, "16000");
+    strcpy (nodeport, LD_DEFAULT_PORT);
   }
-  else
+  /* Otherwise separate host and port */
+  else if ((ptr - dlconn->addr) < sizeof (nodename))
   {
-    if (ptr == dlconn->addr)
-    {
-      strcpy (nodename, "localhost");
-    }
-    else
-    {
-      strncpy (nodename, dlconn->addr, (ptr - dlconn->addr));
-      nodename[(ptr - dlconn->addr)] = '\0';
-    }
-
-    strcpy (nodeport, ptr + 1);
-
-    /* Sanity test the port number */
-    nport = strtoul (nodeport, &tail, 10);
-    if (*tail || (nport <= 0 || nport > 0xffff))
-    {
-      dl_log_r (dlconn, 2, 0, "server port specified incorrectly\n");
-      dlconn->terminate = 1;
-      return -1;
-    }
+    strncpy (nodename, dlconn->addr, (ptr - dlconn->addr));
+    nodename[(ptr - dlconn->addr)] = '\0';
+    strncpy (nodeport, ptr + 1, sizeof (nodeport) - 1);
   }
+
+  /* Sanity test the port number */
+  nport = strtoul (nodeport, &tail, 10);
+  if (*tail || (nport <= 0 || nport > 0xffff))
+  {
+    dl_log_r (dlconn, 2, 0, "server port specified incorrectly\n");
+    dlconn->terminate = 1;
+    return -1;
+  }
+
+  /* Resolve for either IPv4 or IPv6 (PF_UNSPEC) for a TCP stream (SOCK_STREAM) */
+  memset (&hints, 0, sizeof (hints));
+  hints.ai_family   = PF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
 
   /* Resolve server address */
-  if (dlp_getaddrinfo (nodename, nodeport, &addr, &addrlen))
+  if (getaddrinfo (nodename, nodeport, &hints, &addr0))
   {
     dl_log_r (dlconn, 2, 0, "cannot resolve hostname %s\n", nodename);
     return -1;
   }
 
-  /* Create socket */
-  if ((sock = socket (PF_INET, SOCK_STREAM, 0)) < 0)
+  /* Traverse addresses trying to connect */
+  sock = -1;
+  for (addr = addr0; addr != NULL; addr = addr->ai_next)
   {
-    dl_log_r (dlconn, 2, 0, "[%s] socket(): %s\n", dlconn->addr, dlp_strerror ());
-    dlp_sockclose (sock);
-    return -1;
-  }
-
-  /* Set socket I/O timeouts if possible */
-  if (dlconn->iotimeout)
-  {
-    int timeout = (dlconn->iotimeout > 0) ? dlconn->iotimeout : -dlconn->iotimeout;
-
-    if (dlp_setsocktimeo (sock, timeout) == 1)
+    /* Create socket */
+    if ((sock = socket (addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0)
     {
-      dl_log_r (dlconn, 1, 2, "[%s] using system socket timeouts\n", dlconn->addr);
-
-      /* Negate timeout to indicate socket timeouts are set */
-      dlconn->iotimeout = -timeout;
+      continue;
     }
+
+    /* Set socket I/O timeouts if possible */
+    if (dlconn->iotimeout)
+    {
+      timeout = (dlconn->iotimeout > 0) ? dlconn->iotimeout : -dlconn->iotimeout;
+
+      if (dlp_setsocktimeo (sock, timeout) == 1)
+      {
+        /* Negate timeout to indicate socket timeouts are set */
+        dlconn->iotimeout = -timeout;
+      }
+    }
+
+    /* Connect socket */
+    if ((dlp_sockconnect (sock, addr->ai_addr, addr->ai_addrlen)))
+    {
+      dlp_sockclose (sock);
+      sock = -1;
+      continue;
+    }
+
+    socket_family = addr->ai_family;
+    break;
   }
 
-  /* Connect socket */
-  if ((dlp_sockconnect (sock, (struct sockaddr *)&addr, addrlen)))
+  if (sock < 0)
   {
-    dl_log_r (dlconn, 2, 0, "[%s] connect(): %s\n", dlconn->addr, dlp_strerror ());
+    dl_log_r (dlconn, 2, 0, "[%s] Cannot connect: %s\n", dlconn->addr, dlp_strerror ());
     dlp_sockclose (sock);
+    freeaddrinfo (addr0);
     return -1;
+  }
+
+  freeaddrinfo(addr0);
+
+  if (dlconn->iotimeout < 0)
+  {
+    dl_log_r (dlconn, 1, 2, "[%s] using system socket timeouts\n", dlconn->addr);
   }
 
   /* Set socket to non-blocking */
@@ -135,8 +181,19 @@ dl_connect (DLCP *dlconn)
     return -1;
   }
 
-  /* socket connected */
-  dl_log_r (dlconn, 1, 1, "[%s] network socket opened\n", dlconn->addr);
+  /* Socket connected */
+  dl_log_r (dlconn, 1, 1, "[%s] network socket opened ", dlconn->addr);
+  switch (socket_family)
+  {
+  case PF_INET:
+    dl_log_r (dlconn, 1, 1, "(IPv4)\n");
+    break;
+  case PF_INET6:
+    dl_log_r (dlconn, 1, 1, "(IPv6)\n");
+    break;
+  default:
+    dl_log_r (dlconn, 1, 1, "(Unknown protocol)\n");
+  }
 
   dlconn->link = sock;
 
@@ -212,7 +269,7 @@ dl_senddata (DLCP *dlconn, void *buffer, size_t sendlen)
   }
 
   /* Send data */
-  if (send (dlconn->link, buffer, sendlen, 0) != (ssize_t)sendlen)
+  if (send (dlconn->link, buffer, sendlen, 0) != (int64_t)sendlen)
   {
     dl_log_r (dlconn, 2, 0, "[%s] error sending data\n", dlconn->addr);
     return -1;
@@ -281,7 +338,7 @@ dl_sendpacket (DLCP *dlconn, void *headerbuf, size_t headerlen,
   /* Sanity check that the header is not too large or zero */
   if (headerlen > 255 || headerlen == 0)
   {
-    dl_log_r (dlconn, 2, 0, "[%s] packet header size is invalid: %d\n",
+    dl_log_r (dlconn, 2, 0, "[%s] packet header size is invalid: %" PRIsize_t "\n",
               dlconn->addr, headerlen);
     return -1;
   }
@@ -289,7 +346,7 @@ dl_sendpacket (DLCP *dlconn, void *headerbuf, size_t headerlen,
   /* Sanity check that the header + packet data is not too large */
   if ((3 + headerlen + datalen) > MAXPACKETSIZE)
   {
-    dl_log_r (dlconn, 2, 0, "[%s] packet is too large (%d), max is %d\n",
+    dl_log_r (dlconn, 2, 0, "[%s] packet is too large (%" PRIsize_t "), max is %d\n",
               dlconn->addr, (headerlen + datalen), MAXPACKETSIZE);
     return -1;
   }
@@ -312,7 +369,7 @@ dl_sendpacket (DLCP *dlconn, void *headerbuf, size_t headerlen,
     /* Check for a message from the server */
     if ((bytesread = dl_recvheader (dlconn, respbuf, resplen, 0)) > 0)
     {
-      dl_log_r (dlconn, 2, 0, "[%s] %s", dlconn->addr, respbuf);
+      dl_log_r (dlconn, 2, 0, "[%s] %*s", dlconn->addr, bytesread, (char *)respbuf);
     }
 
     return -1;
@@ -394,7 +451,7 @@ dl_recvdata (DLCP *dlconn, void *buffer, size_t readlen, uint8_t blockflag)
   }
 
   /* Recv until readlen bytes have been read */
-  while (nread < (ssize_t)readlen)
+  while (nread < (int64_t)readlen)
   {
     if ((nrecv = recv (dlconn->link, bptr, readlen - nread, 0)) < 0)
     {
@@ -522,7 +579,7 @@ dl_recvheader (DLCP *dlconn, void *buffer, size_t buflen, uint8_t blockflag)
   }
 
   /* Make sure reply is NULL terminated */
-  if (bytesread == (ssize_t)buflen)
+  if (bytesread == (int64_t)buflen)
     cbuffer[bytesread - 1] = '\0';
   else
     cbuffer[bytesread] = '\0';

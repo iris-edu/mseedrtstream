@@ -17,7 +17,8 @@ OBJS=	timeutils.obj	\
 	statefile.obj	\
 	config.obj	\
 	portable.obj	\
-	connection.obj
+	connection.obj  \
+        gmtime64.obj
 
 all: lib
 

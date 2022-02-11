@@ -18,17 +18,8 @@ By default a statically linked version of the library is built: 'libslink.a'.
 With GCC, clang or compatible build tools it is possible to build a shared
 library with 'make shared'.
 
--- macOS --
-
-A static library can be compiled using the above Unix instructions,
-just run 'make'.
-
-Using GCC, clang or compatible build tools it is possible to build a dynamic
-library with 'make dynamic'.
-
 -- Windows --
 
 On a Windows platform the library can be compiled by using the
-Nmake compatible Makefile.win (e.g. 'nmake -f Makefile.win') or Open
-Watcom's Wmake with Makefile.wat (e.g. 'wmake -f Makefile.wat'). The
+Nmake compatible Makefile.win (e.g. 'nmake -f Makefile.win').  The
 default target is a static library 'libslink.lib'.

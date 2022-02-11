@@ -10,9 +10,21 @@
  * The most important routines for general library use are
  * dl_loginit() and dl_log().
  *
- * @author Chad Trabant, IRIS Data Management Center
+ * This file is part of the DataLink Library.
  *
- * modified: 2008.193
+ * Copyright (c) 2020 Chad Trabant, IRIS Data Management Center
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  ***************************************************************************/
 
 #include <stdarg.h>
@@ -26,7 +38,7 @@ void dl_loginit_main (DLLog *logp, int verbosity,
                       void (*log_print) (char *), const char *logprefix,
                       void (*diag_print) (char *), const char *errprefix);
 
-int dl_log_main (DLLog *logp, int level, int verb, va_list *varlist);
+int dl_log_main (DLLog *logp, int level, int verb, const char *format, va_list *varlist);
 
 /** Initial global logging parameters */
 DLLog gDLLog = {NULL, NULL, NULL, NULL, 0};
@@ -194,19 +206,20 @@ dl_loginit_main (DLLog *logp, int verbosity,
  *
  * @param level Level at which to log the message (1, 2 or 3)
  * @param verb Verbosity threshold at which to log the message
- * @param ... Message format and optional arguments in printf style
+ * @param format Message format in printf() style
+ * @param ... Message format variables
  *
  * @return See dl_log_main() description for return values.
  ***************************************************************************/
 int
-dl_log (int level, int verb, ...)
+dl_log (int level, int verb, const char *format, ...)
 {
   int retval;
   va_list varlist;
 
-  va_start (varlist, verb);
+  va_start (varlist, format);
 
-  retval = dl_log_main (&gDLLog, level, verb, &varlist);
+  retval = dl_log_main (&gDLLog, level, verb, format, &varlist);
 
   va_end (varlist);
 
@@ -223,12 +236,13 @@ dl_log (int level, int verb, ...)
  * @param dlconn DataLink Connection Parameters with associated logging paramters
  * @param level Level at which to log the message (1, 2 or 3)
  * @param verb Verbosity threshold at which to log the message
- * @param ... Message format and optional arguments in printf style
+ * @param format Message format in printf() style
+ * @param ... Message format variables
  *
  * @return See dl_log_main() description for return values.
  ***************************************************************************/
 int
-dl_log_r (const DLCP *dlconn, int level, int verb, ...)
+dl_log_r (const DLCP *dlconn, int level, int verb, const char *format, ...)
 {
   int retval;
   va_list varlist;
@@ -241,9 +255,9 @@ dl_log_r (const DLCP *dlconn, int level, int verb, ...)
   else
     logp = dlconn->log;
 
-  va_start (varlist, verb);
+  va_start (varlist, format);
 
-  retval = dl_log_main (logp, level, verb, &varlist);
+  retval = dl_log_main (logp, level, verb, format, &varlist);
 
   va_end (varlist);
 
@@ -260,12 +274,13 @@ dl_log_r (const DLCP *dlconn, int level, int verb, ...)
  * @param log DLLog logging paramters
  * @param level Level at which to log the message (1, 2 or 3)
  * @param verb Verbosity threshold at which to log the message
- * @param ... Message format and optional arguments in printf style
+ * @param format Message format in printf() style
+ * @param ... Message format variables
  *
  * @return See dl_log_main() description for return values.
  ***************************************************************************/
 int
-dl_log_rl (DLLog *log, int level, int verb, ...)
+dl_log_rl (DLLog *log, int level, int verb, const char *format, ...)
 {
   int retval;
   va_list varlist;
@@ -276,9 +291,9 @@ dl_log_rl (DLLog *log, int level, int verb, ...)
   else
     logp = log;
 
-  va_start (varlist, verb);
+  va_start (varlist, format);
 
-  retval = dl_log_main (logp, level, verb, &varlist);
+  retval = dl_log_main (logp, level, verb, format, &varlist);
 
   va_end (varlist);
 
@@ -322,35 +337,38 @@ dl_log_rl (DLLog *log, int level, int verb, ...)
  * @param logp DLLog logging paramters
  * @param level Level at which to log the message (1, 2 or 3)
  * @param verb Verbosity threshold at which to log the message
- * @param varlist Message format and optional arguments in printf style
+ * @param format Message format in printf() style
+ * @param varlist Message format variables
  *
  * @return The number of characters formatted on success, and a
  * a negative value on error.
  ***************************************************************************/
 int
-dl_log_main (DLLog *logp, int level, int verb, va_list *varlist)
+dl_log_main (DLLog *logp, int level, int verb, const char *format, va_list *varlist)
 {
   static char message[MAX_LOG_MSG_LENGTH];
   int retvalue = 0;
+  int presize;
+
+  if (!logp)
+  {
+    fprintf (stderr, "%s() called without specifying log parameters", __func__);
+    return -1;
+  }
 
   message[0] = '\0';
 
   if (verb <= logp->verbosity)
   {
-    int presize;
-    const char *format;
-
-    format = va_arg (*varlist, const char *);
-
     if (level >= 2) /* Error message */
     {
       if (logp->errprefix != NULL)
       {
-        strncpy (message, logp->errprefix, MAX_LOG_MSG_LENGTH);
+        strncpy (message, logp->errprefix, MAX_LOG_MSG_LENGTH - 1);
       }
       else
       {
-        strncpy (message, "error: ", MAX_LOG_MSG_LENGTH);
+        strncpy (message, "error: ", MAX_LOG_MSG_LENGTH - 1);
       }
 
       presize  = strlen (message);
@@ -373,7 +391,7 @@ dl_log_main (DLLog *logp, int level, int verb, va_list *varlist)
     {
       if (logp->logprefix != NULL)
       {
-        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
+        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH - 1);
       }
 
       presize  = strlen (message);
@@ -396,7 +414,7 @@ dl_log_main (DLLog *logp, int level, int verb, va_list *varlist)
     {
       if (logp->logprefix != NULL)
       {
-        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH);
+        strncpy (message, logp->logprefix, MAX_LOG_MSG_LENGTH - 1);
       }
 
       presize  = strlen (message);

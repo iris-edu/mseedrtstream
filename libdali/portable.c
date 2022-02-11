@@ -3,21 +3,21 @@
  *
  * Platform portability routines.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public License
- * as published by the Free Software Foundation; either version 2 of
- * the License, or (at your option) any later version.
+ * This file is part of the DataLink Library.
  *
- * This library is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License (GNU-LGPL) for more details.  The
- * GNU-LGPL and further information can be found here:
- * http://www.gnu.org/
+ * Copyright (c) 2020 Chad Trabant, IRIS Data Management Center
  *
- * @author Chad Trabant, IRIS Data Management Center
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * modified: 2016.291
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  ***************************************************************************/
 
 #include <errno.h>
@@ -288,85 +288,6 @@ dlp_setioalarm (int timeout)
 } /* End of dlp_setioalarm() */
 
 /***********************************************************************/ /**
- * @brief Resolve IP address and prepare parameters for connect()
- *
- * On WIN this will use the older gethostbyname() for consistent
- * compatibility with older OS versions.  In the future we should be
- * able to use getaddrinfo() even on Windows.
- *
- * On all other platforms use POSIX 1003.1g getaddrinfo() because it
- * is standardized, thread-safe and protocol independent (i.e. IPv4,
- * IPv6, etc.) and has broad support.
- *
- * Currently, this routine is limited to IPv4 addresses.
- *
- * @param nodename Hostname to resolve
- * @param nodeport Port number to connect to
- * @param addr Returned struct sockaddr for connect()
- * @param addrlen Returned length of @a addr
- *
- * @return 0 on success and non-zero on error.  On everything but WIN
- * an error value is the return value of getaddrinfo().
- ***************************************************************************/
-int
-dlp_getaddrinfo (char *nodename, char *nodeport,
-                 struct sockaddr *addr, size_t *addrlen)
-{
-#if defined(DLP_WIN)
-  struct hostent *result;
-  struct sockaddr_in inet_addr;
-  long int nport;
-  char *tail;
-
-  if ((result = gethostbyname (nodename)) == NULL)
-  {
-    return -1;
-  }
-
-  nport = strtoul (nodeport, &tail, 0);
-
-  memset (&inet_addr, 0, sizeof (inet_addr));
-  inet_addr.sin_family = AF_INET;
-  inet_addr.sin_port   = htons ((unsigned short int)nport);
-  inet_addr.sin_addr   = *(struct in_addr *)result->h_addr_list[0];
-
-  memcpy (addr, &inet_addr, sizeof (struct sockaddr));
-  *addrlen = sizeof (inet_addr);
-
-#else
-  /* getaddrinfo() will be used by all others */
-  struct addrinfo *ptr    = NULL;
-  struct addrinfo *result = NULL;
-  struct addrinfo hints;
-  int rv;
-
-  memset (&hints, 0, sizeof (hints));
-  hints.ai_family   = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-
-  if ((rv = getaddrinfo (nodename, nodeport, &hints, &result)))
-  {
-    return rv;
-  }
-
-  for (ptr = result; ptr != NULL; ptr = ptr->ai_next)
-  {
-    if (ptr->ai_family == AF_INET)
-    {
-      memcpy (addr, ptr->ai_addr, sizeof (struct sockaddr));
-      *addrlen = (size_t)ptr->ai_addrlen;
-      break;
-    }
-  }
-
-  freeaddrinfo (result);
-
-#endif
-
-  return 0;
-} /* End of dlp_getaddrinfo() */
-
-/***********************************************************************/ /**
  * @brief Open a file stream
  *
  * Open a specified file and return the file descriptor.  The @a perm
@@ -518,7 +439,7 @@ dlp_usleep (unsigned long int useconds)
  * @param clientid Generated client ID string will be written to this string
  * @param maxsize Maximum bytes to write to @a clientid string.
  *
- * @return the number of charaters written to clientid on success and
+ * @return the number of characters written to clientid on success and
  * -1 on error.
  ***************************************************************************/
 int
@@ -563,7 +484,7 @@ dlp_genclientid (char *progname, char *clientid, size_t maxsize)
             (long)pid,
             dwMajorVersion, dwMinorVersion, dwBuild);
 
-  return 0;
+  return (int)strlen (clientid);
 #else
   char osver[100];
   char *prog = 0;
@@ -591,7 +512,7 @@ dlp_genclientid (char *progname, char *clientid, size_t maxsize)
   /* Lookup system name and release */
   if (uname (&myname) >= 0)
   {
-    snprintf (osver, sizeof (osver), "%s-%s",
+    snprintf (osver, sizeof (osver), "%.50s-%.48s",
               myname.sysname, myname.release);
   }
   else
@@ -605,6 +526,6 @@ dlp_genclientid (char *progname, char *clientid, size_t maxsize)
             (long)pid,
             osver);
 
-  return 0;
+  return (int)strlen (clientid);
 #endif
 } /* End of dlp_genclientid() */
