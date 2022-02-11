@@ -12,7 +12,7 @@
  * Written by Chad Trabant, IRIS Data Management Center.
  ***************************************************************************/
 
-/* ToDo? Restamp record start times to simulate current data flow */
+/* Possible TODO Re-time records to simulate current data flow */
 
 #include <errno.h>
 #include <math.h>
@@ -28,7 +28,7 @@
 #include <libdali.h>
 #include <libmseed.h>
 
-#define VERSION "0.3"
+#define VERSION "0.4"
 #define PACKAGE "mseedrtstream"
 
 /* Input/output file information containers */
@@ -102,12 +102,15 @@ main (int argc, char **argv)
 {
   RecordMap recmap;
 
-  /* Set default error message prefix */
-  ms_loginit (NULL, NULL, NULL, "ERROR: ");
-
   /* Process input parameters */
   if (processparam (argc, argv) < 0)
     return 1;
+
+  /* Set default error message prefix for libmseed logging */
+  ms_loginit (NULL, NULL, NULL, "ERROR: ");
+
+  /* Default error prefix and verbosity for libdali logging */
+  dl_loginit (verbose, NULL, NULL, NULL, "ERROR: ");
 
   /* Connect to DataLink server */
   if (dlconn)
